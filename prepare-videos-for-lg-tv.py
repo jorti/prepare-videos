@@ -107,6 +107,7 @@ def transcode_video(video, prefix):
     unsupported_audio_codecs = {'dts', 'dca'}
     target = os.path.join(video.directory, prefix + "-" + video.filename)
     if os.path.isfile(target):
+        print("Skipping already converted video {f}".format(f=video.filename))
         return
     supported_video_codec = True
     supported_audio_codec = True
@@ -142,27 +143,42 @@ def transcode_video(video, prefix):
         new_video = Video(target)
         get_subtitles(new_video)
 
-def scan_videos(dir):
+
+def is_supported_video_file(file):
+    supported_extensions = {'.mkv', '.mp4', '.avi', '.mpg', '.mpeg'}
+    if os.path.isfile(file):
+        (basename, ext) = os.path.splitext(file)
+        if ext in supported_extensions:
+            return True
+    return False
+
+def scan_videos(dir=None, file_list=None):
     "Scan a directory for supported video files"
+    if not dir and not file_list:
+        raise ValueError("A directory or a file must be specified")
     supported_extensions = {'.mkv', '.mp4', '.avi', '.mpg', '.mpeg'}
     videos = []
-    for root, dirs, files in os.walk(dir):
-        for name in files:
-            (basename, ext) = os.path.splitext(name)
-            if ext in supported_extensions:
-                v = Video(os.path.join(root, name))
-                videos.append(v)
+    if dir:
+        for root, dirs, files in os.walk(dir):
+            for name in files:
+                f = os.path.join(root, name)
+                if is_supported_video_file(f):
+                    videos.append(Video(f))
+    if file_list:
+        for f in file_list:
+            if is_supported_video_file(f):
+                videos.append(Video(f))
     return videos
 
 
 def main(argv):
     parser = argparse.ArgumentParser(description="Prepare videos for LG TV")
-    parser.add_argument("-d", "--directory", help="Directory to scan for videos",
-                        default=".")
+    parser.add_argument("-d", "--directory", help="Directory to scan recursively for videos")
     parser.add_argument("-p", "--prefix", help="Converted files prefix",
-                        default="lgtv")
+            default="lgtv")
+    parser.add_argument("file", nargs='*', help="Files to analyze")
     args = parser.parse_args()
-    videos = scan_videos(args.directory)
+    videos = scan_videos(dir=args.directory, file_list=args.file)
     for v in videos:
         get_subtitles(v)
     for v in videos:
