@@ -84,6 +84,7 @@ def download_sub(video):
         v = subliminal.scan_video(video.path)
     except ValueError as ex:
         print("ERROR: Failed to analyze video video file. ", ex)
+        return
     best_subs = subliminal.download_best_subtitles({v},
             {babelfish.Language('eng')}, only_one=True)
     if best_subs[v]:
