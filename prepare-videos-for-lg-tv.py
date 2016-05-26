@@ -140,8 +140,7 @@ def transcode_video(video, prefix):
             print("OK: Video {f} transcoded".format(f=video.filename))
         except subprocess.CalledProcessError:
             print("ERROR: Video {f} failed to transcode".format(f=video.filename))
-        new_video = Video(target)
-        get_subtitles(new_video)
+        get_subtitles(Video(target))
 
 
 def is_supported_video_file(file):
