@@ -22,18 +22,28 @@ import os
 import argparse
 import subprocess
 import re
-import pprint
 import subliminal
 import babelfish
+import json
 
-#for i in *mkv; do ffmpeg -i $i -c:v libx264 -preset slow -acodec copy -scodec copy h264-$i; done
 
 class Video:
     def __init__(self, file_path):
         self.path = os.path.abspath(file_path)
         (self.directory, self.filename) = os.path.split(self.path)
         (self.basename, self.extension) = os.path.splitext(self.filename)
+        self._scan_video()
         self._scan_subtitles()
+
+    def _scan_video(self):
+        try:
+            info_json = subprocess.check_output(["ffprobe", "-show_format",
+                "-show_streams", "-loglevel", "quiet", "-print_format", "json",
+                self.path])
+        except subprocess.CalledProcessError as ex:
+            print(ex)
+            sys.exit(1)
+        self.info = json.loads(info_json.decode('utf_8'))
 
     def _scan_subtitles(self):
         if self.extension == ".mkv":
@@ -68,7 +78,6 @@ def extract_embedded_sub(video):
     except subprocess.CalledProcessError:
         print("ERROR.")
 
-
 def download_sub(video):
     print("Downloading subtitles for {f}".format(f=video.filename))
     try:
@@ -84,8 +93,6 @@ def download_sub(video):
     else:
         print("ERROR: No subtitles found online.")
 
-
-
 def get_subtitles(video):
     if not video.has_external_sub:
         if video.has_embedded_sub:
@@ -94,6 +101,46 @@ def get_subtitles(video):
             download_sub(video)
     else:
         print("Subtitles OK for {f}".format(f=video.filename))
+
+def transcode_video(video, prefix):
+    unsupported_video_codecs = {'hevc'}
+    unsupported_audio_codecs = {'dts', 'dca'}
+    target = os.path.join(video.directory, prefix + "-" + video.filename)
+    if os.path.isfile(target):
+        return
+    supported_video_codec = True
+    supported_audio_codec = True
+    for stream in video.info['streams']:
+        if stream['codec_type'] == "video" and \
+                stream['codec_name'] in unsupported_video_codecs:
+            print("Unsupported video codec {c} in file {f}".format(c=stream['codec_name'],
+                f=video.filename))
+            supported_video_codec = False
+        if stream['codec_type'] == "audio" and \
+                stream['codec_name'] in unsupported_audio_codecs:
+            print("Unsupported audio codec {c} in file {f}".format(c=stream['codec_name'],
+                f=video.filename))
+            supported_audio_codec = False
+    if not supported_video_codec or not supported_audio_codec:
+        #ffmpeg -i file -nostats -loglevel 0 -c:v libx264 -preset slow -acodec copy -scodec copy h264-file
+        command = ["ffmpeg", "-i", video.path, "-nostats", "-loglevel", "0"]
+        if not supported_video_codec:
+            command += ["-c:v", "libx264", "-preset", "slow"]
+        else:
+            command += ["-vcodec", "copy"]
+        if not supported_audio_codec:
+            command += ["-c:a", "ac3"]
+        else:
+            command += ["-acodec", "copy"]
+        command += ["-scodec", "copy", target]
+        print("Running command: {c}".format(c=command))
+        try:
+            subprocess.call(command)
+            print("OK: Video {f} transcoded".format(f=video.filename))
+        except subprocess.CalledProcessError:
+            print("ERROR: Video {f} failed to transcode".format(f=video.filename))
+        new_video = Video(target)
+        get_subtitles(new_video)
 
 def scan_videos(dir):
     "Scan a directory for supported video files"
@@ -118,8 +165,8 @@ def main(argv):
     videos = scan_videos(args.directory)
     for v in videos:
         get_subtitles(v)
-    #for v in videos:
-    #    pprint.pprint(v.__dict__)
+    for v in videos:
+        transcode_video(v, args.prefix)
 
 
 if __name__ == '__main__':
