@@ -33,7 +33,8 @@ class Video:
         (self.directory, self.filename) = os.path.split(self.path)
         (self.basename, self.extension) = os.path.splitext(self.filename)
         self._scan_video()
-        self._scan_subtitles()
+        self._scan_embedded_subtitles()
+        self._scan_external_subtitles()
 
     def _scan_video(self):
         try:
@@ -45,23 +46,15 @@ class Video:
             sys.exit(1)
         self.info = json.loads(info_json.decode('utf_8'))
 
-    def _scan_subtitles(self):
-        if self.extension == ".mkv":
-            try:
-                raw_info = subprocess.check_output(["mkvmerge", "-i", self.path],
-                                            stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError as ex:
-                print(ex)
-                sys.exit(1)
-            pattern = re.compile('.* (\d+): subtitles \(SubRip/SRT\).*', re.DOTALL)
-            m = pattern.match(str(raw_info))
-            if m:
+    def _scan_embedded_subtitles(self):
+        self.has_embedded_sub = False
+        for stream in self.info['streams']:
+            if stream['codec_type'] == 'subtitle':
                 self.has_embedded_sub = True
-                self.embedded_sub_id = m.group(1)
-            else:
-                self.has_embedded_sub = False
-        else:
-            self.has_embedded_sub = False
+                self.embedded_sub_id = stream['index']
+                return
+
+    def _scan_external_subtitles(self):
         self.sub_path = os.path.join(self.directory, self.basename + ".srt")
         if os.path.isfile(self.sub_path):
             self.has_external_sub = True
@@ -103,35 +96,34 @@ def get_subtitles(video):
     else:
         print("Subtitles OK for {f}".format(f=video.filename))
 
-def transcode_video(video, prefix):
-    unsupported_video_codecs = {'hevc'}
-    unsupported_audio_codecs = {'dts', 'dca'}
+def transcode_video(video, prefix, target_vcodec, target_acodec,
+        unsupported_vcodecs, unsupported_acodecs):
     target = os.path.join(video.directory, prefix + "-" + video.filename)
     if os.path.isfile(target):
         print("Skipping already converted video {f}".format(f=video.filename))
         return
-    supported_video_codec = True
-    supported_audio_codec = True
+    supported_vcodec = True
+    supported_acodec = True
     for stream in video.info['streams']:
         if stream['codec_type'] == "video" and \
-                stream['codec_name'] in unsupported_video_codecs:
+                stream['codec_name'] in unsupported_vcodecs:
             print("Unsupported video codec {c} in file {f}".format(c=stream['codec_name'],
                 f=video.filename))
-            supported_video_codec = False
+            supported_vcodec = False
         if stream['codec_type'] == "audio" and \
-                stream['codec_name'] in unsupported_audio_codecs:
+                stream['codec_name'] in unsupported_acodecs:
             print("Unsupported audio codec {c} in file {f}".format(c=stream['codec_name'],
                 f=video.filename))
-            supported_audio_codec = False
-    if not supported_video_codec or not supported_audio_codec:
+            supported_acodec = False
+    if not supported_vcodec or not supported_acodec:
         #ffmpeg -i file -nostats -loglevel 0 -c:v libx264 -preset slow -acodec copy -scodec copy h264-file
         command = ["ffmpeg", "-i", video.path, "-nostats", "-loglevel", "0"]
-        if not supported_video_codec:
-            command += ["-c:v", "libx264", "-preset", "slow"]
+        if not supported_vcodec:
+            command += ["-c:v", target_vcodec, "-preset", "slow"]
         else:
             command += ["-vcodec", "copy"]
-        if not supported_audio_codec:
-            command += ["-c:a", "ac3"]
+        if not supported_acodec:
+            command += ["-c:a", target_acodec]
         else:
             command += ["-acodec", "copy"]
         command += ["-scodec", "copy", target]
@@ -145,18 +137,17 @@ def transcode_video(video, prefix):
 
 
 def is_supported_video_file(file):
-    supported_extensions = {'.mkv', '.mp4', '.avi', '.mpg', '.mpeg'}
+    supported_extensions = frozenset(['.mkv', '.mp4', '.avi', '.mpg', '.mpeg'])
     if os.path.isfile(file):
         (basename, ext) = os.path.splitext(file)
         if ext in supported_extensions:
             return True
     return False
 
-def scan_videos(dir=None, file_list=None):
+def search_videos(dir=None, file_list=None):
     "Scan a directory for supported video files"
     if not dir and not file_list:
         raise ValueError("A directory or a file must be specified")
-    supported_extensions = {'.mkv', '.mp4', '.avi', '.mpg', '.mpeg'}
     videos = []
     if dir:
         for root, dirs, files in os.walk(dir):
@@ -173,17 +164,36 @@ def scan_videos(dir=None, file_list=None):
 
 def main(argv):
     parser = argparse.ArgumentParser(description="Prepare videos for LG TV")
-    parser.add_argument("-d", "--directory", help="Directory to scan recursively for videos")
-    parser.add_argument("-p", "--prefix", help="Converted files prefix",
+    parser.add_argument("-d", "--directory",
+            help="Directory to scan recursively for videos")
+    parser.add_argument("-p", "--prefix",
+            help="Converted files prefix (default: lgtv)",
             default="lgtv")
+    parser.add_argument("-v", "--vcodec",
+            help="Target video codec (default: libx264)",
+            default="libx264")
+    parser.add_argument("-a", "--acodec",
+            help="Target audio codec (default: ac3)",
+            default="ac3")
+    parser.add_argument("-uv", "--unsupported-vcodecs",
+            help="Unsupported video codecs (default: hevc)",
+            nargs='+',
+            default=["hevc"])
+    parser.add_argument("-ua", "--unsupported-acodecs",
+            help="Unsupported audio codecs (default: dts, dca)",
+            nargs='+',
+            default=["dts", "dca"])
     parser.add_argument("file", nargs='*', help="Files to analyze")
     args = parser.parse_args()
-    videos = scan_videos(dir=args.directory, file_list=args.file)
+    videos = search_videos(dir=args.directory, file_list=args.file)
     for v in videos:
         get_subtitles(v)
     for v in videos:
-        transcode_video(v, args.prefix)
-
+        transcode_video(v, args.prefix,
+                target_vcodec=args.vcodec,
+                target_acodec=args.acodec,
+                unsupported_vcodecs=frozenset(args.unsupported_vcodecs),
+                unsupported_acodecs=frozenset(args.unsupported_acodecs))
 
 if __name__ == '__main__':
     main(sys.argv)
