@@ -66,7 +66,7 @@ def extract_embedded_sub(video):
     print("Extracting embedded subtitles for {f}".format(f=video.filename))
     try:
         subprocess.call(["mkvextract", "tracks", video.path,
-                         video.embedded_sub_id + ":" + video.sub_path])
+                         str(video.embedded_sub_id) + ":" + video.sub_path])
         print("OK.")
     except subprocess.CalledProcessError:
         print("ERROR.")
@@ -129,10 +129,17 @@ def transcode_video(video, prefix, target_vcodec, target_acodec,
         command += ["-scodec", "copy", target]
         print("Running command: {c}".format(c=command))
         try:
-            subprocess.call(command)
+            retval = subprocess.call(command)
             print("OK: Video {f} transcoded".format(f=video.filename))
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as ex:
             print("ERROR: Video {f} failed to transcode".format(f=video.filename))
+            print(ex)
+            return
+        if retval != 0:
+            print("ERROR: ffmpeg return value {v}".format(v=retval))
+            if os.path.isfile(target):
+                os.remove(target)
+            return
         get_subtitles(Video(target))
 
 
