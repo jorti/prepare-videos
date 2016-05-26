@@ -97,9 +97,10 @@ def get_subtitles(video):
     else:
         print("Subtitles OK for {f}".format(f=video.filename))
 
-def transcode_video(video, prefix, target_vcodec, target_acodec,
-        unsupported_vcodecs, unsupported_acodecs):
-    target = os.path.join(video.directory, prefix + "-" + video.filename)
+def transcode_video(video, prefix, target_container, target_vcodec,
+        target_acodec, unsupported_vcodecs, unsupported_acodecs):
+    target = os.path.join(video.directory, prefix + "-" +
+            video.basename + "." + target_container)
     if os.path.isfile(target):
         print("Skipping already converted video {f}".format(f=video.filename))
         return
@@ -177,6 +178,9 @@ def main(argv):
     parser.add_argument("-p", "--prefix",
             help="Converted files prefix (default: lgtv)",
             default="lgtv")
+    parser.add_argument("-c", "--container",
+            help="Target video container (default: mkv)",
+            default="mkv")
     parser.add_argument("-v", "--vcodec",
             help="Target video codec (default: libx264)",
             default="libx264")
@@ -198,6 +202,7 @@ def main(argv):
         get_subtitles(v)
     for v in videos:
         transcode_video(v, args.prefix,
+                target_container=args.container,
                 target_vcodec=args.vcodec,
                 target_acodec=args.acodec,
                 unsupported_vcodecs=frozenset(args.unsupported_vcodecs),
