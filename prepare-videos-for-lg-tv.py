@@ -68,8 +68,9 @@ def extract_embedded_sub(video):
         subprocess.call(["mkvextract", "tracks", video.path,
                          str(video.embedded_sub_id) + ":" + video.sub_path])
         print("OK.")
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as ex:
         print("ERROR.")
+        print(ex)
 
 def download_sub(video):
     print("Downloading subtitles for {f}".format(f=video.filename))
