@@ -25,6 +25,7 @@ import re
 import subliminal
 import babelfish
 import json
+import pprint
 
 
 class Video:
@@ -88,9 +89,9 @@ def download_sub(video):
     else:
         print("ERROR: No subtitles found online.")
 
-def get_subtitles(video):
+def get_subtitles(video, force_download=False):
     if not video.has_external_sub:
-        if video.has_embedded_sub:
+        if video.has_embedded_sub and not force_download:
             extract_embedded_sub(video)
         else:
             download_sub(video)
@@ -181,10 +182,10 @@ def main(argv):
     parser.add_argument("-c", "--container",
             help="Target video container (default: mkv)",
             default="mkv")
-    parser.add_argument("-v", "--vcodec",
+    parser.add_argument("-vc", "--vcodec",
             help="Target video codec (default: libx264)",
             default="libx264")
-    parser.add_argument("-a", "--acodec",
+    parser.add_argument("-ac", "--acodec",
             help="Target audio codec (default: ac3)",
             default="ac3")
     parser.add_argument("-uv", "--unsupported-vcodecs",
@@ -195,11 +196,17 @@ def main(argv):
             help="Unsupported audio codecs (default: dts, dca)",
             nargs='+',
             default=["dts", "dca"])
+    parser.add_argument("-v", "--verbose", action="store_true",
+            help="More information")
+    parser.add_argument("-ds", "--download-subtitles", action="store_true",
+            help="Force to download subtitles")
     parser.add_argument("file", nargs='*', help="Files to analyze")
     args = parser.parse_args()
     videos = search_videos(dir=args.directory, file_list=args.file)
     for v in videos:
-        get_subtitles(v)
+        if args.verbose:
+            pprint.pprint(v.__dict__)
+        get_subtitles(v, args.download_subtitles)
     for v in videos:
         transcode_video(v, args.prefix,
                 target_container=args.container,
