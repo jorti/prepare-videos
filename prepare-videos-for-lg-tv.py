@@ -73,7 +73,7 @@ def extract_embedded_sub(video):
         print("ERROR.")
         print(ex)
 
-def download_sub(video):
+def download_sub(video, language):
     print("Downloading subtitles for {f}".format(f=video.filename))
     try:
         v = subliminal.scan_video(video.path)
@@ -81,7 +81,7 @@ def download_sub(video):
         print("ERROR: Failed to analyze video video file. ", ex)
         return
     best_subs = subliminal.download_best_subtitles({v},
-            {babelfish.Language('eng')}, only_one=True)
+            {babelfish.Language(language)}, only_one=True)
     if best_subs[v]:
         sub = best_subs[v][0]
         subliminal.save_subtitles(v, [sub], single=True)
@@ -89,44 +89,50 @@ def download_sub(video):
     else:
         print("ERROR: No subtitles found online.")
 
-def get_subtitles(video, force_download=False):
+def get_subtitles(video, force_download=False, language="eng"):
     if not video.has_external_sub:
         if video.has_embedded_sub and not force_download:
             extract_embedded_sub(video)
         else:
-            download_sub(video)
+            download_sub(video, language)
     else:
         print("Subtitles OK for {f}".format(f=video.filename))
 
-def transcode_video(video, prefix, target_container, target_vcodec,
-        target_acodec, unsupported_vcodecs, unsupported_acodecs):
-    target = os.path.join(video.directory, prefix + "-" +
-            video.basename + "." + target_container)
-    if os.path.isfile(target):
-        print("Skipping already converted video {f}".format(f=video.filename))
-        return
+def transcode_video(video, args):
     supported_vcodec = True
     supported_acodec = True
     for stream in video.info['streams']:
         if stream['codec_type'] == "video" and \
-                stream['codec_name'] in unsupported_vcodecs:
+                stream['codec_name'] in args.unsupported_vcodecs:
             print("Unsupported video codec {c} in file {f}".format(c=stream['codec_name'],
                 f=video.filename))
             supported_vcodec = False
         if stream['codec_type'] == "audio" and \
-                stream['codec_name'] in unsupported_acodecs:
+                stream['codec_name'] in args.unsupported_acodecs:
             print("Unsupported audio codec {c} in file {f}".format(c=stream['codec_name'],
                 f=video.filename))
             supported_acodec = False
     if not supported_vcodec or not supported_acodec:
+        target = os.path.join(video.directory, video.basename + "." + args.container)
+        original_dir = os.path.join(video.directory, ".original")
+        original_file = os.path.join(original_dir, video.filename)
+        if os.path.exists(original_file):
+            print("{f} exists, cancelling transcoding.".format(f=original_file))
+            return
+        if not os.path.exists(original_dir):
+            os.makedirs(original_dir)
+        os.rename(video.path, original_file)
+        if os.path.isfile(target):
+            print("Skipping already converted video {f}".format(f=video.filename))
+            return
         #ffmpeg -i file -nostats -loglevel 0 -c:v libx264 -preset slow -acodec copy -scodec copy h264-file
-        command = ["ffmpeg", "-i", video.path, "-nostats", "-loglevel", "0"]
+        command = ["ffmpeg", "-i", original_file, "-nostats", "-loglevel", "0"]
         if not supported_vcodec:
-            command += ["-c:v", target_vcodec, "-preset", "slow"]
+            command += ["-c:v", args.vcodec, "-preset", "slow"]
         else:
             command += ["-vcodec", "copy"]
         if not supported_acodec:
-            command += ["-c:a", target_acodec]
+            command += ["-c:a", args.acodec]
         else:
             command += ["-acodec", "copy"]
         command += ["-scodec", "copy", target]
@@ -162,6 +168,8 @@ def search_videos(dir=None, file_list=None):
     if dir:
         for root, dirs, files in os.walk(dir):
             for name in files:
+                if os.path.basename(root) == ".original":
+                    continue
                 f = os.path.join(root, name)
                 if is_supported_video_file(f):
                     videos.append(Video(f))
@@ -176,9 +184,6 @@ def main(argv):
     parser = argparse.ArgumentParser(description="Prepare videos for LG TV")
     parser.add_argument("-d", "--directory",
             help="Directory to scan recursively for videos")
-    parser.add_argument("-p", "--prefix",
-            help="Converted files prefix (default: lgtv)",
-            default="lgtv")
     parser.add_argument("-c", "--container",
             help="Target video container (default: mkv)",
             default="mkv")
@@ -200,20 +205,17 @@ def main(argv):
             help="More information")
     parser.add_argument("-ds", "--download-subtitles", action="store_true",
             help="Force to download subtitles")
+    parser.add_argument("-l", "--language", help="Subtitles language",
+            default="eng")
     parser.add_argument("file", nargs='*', help="Files to analyze")
     args = parser.parse_args()
     videos = search_videos(dir=args.directory, file_list=args.file)
     for v in videos:
         if args.verbose:
             pprint.pprint(v.__dict__)
-        get_subtitles(v, args.download_subtitles)
+        get_subtitles(v, args.download_subtitles, args.language)
     for v in videos:
-        transcode_video(v, args.prefix,
-                target_container=args.container,
-                target_vcodec=args.vcodec,
-                target_acodec=args.acodec,
-                unsupported_vcodecs=frozenset(args.unsupported_vcodecs),
-                unsupported_acodecs=frozenset(args.unsupported_acodecs))
+        transcode_video(v, args)
 
 if __name__ == '__main__':
     main(sys.argv)
