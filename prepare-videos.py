@@ -63,21 +63,25 @@ class Video:
 
 def extract_embedded_sub(video):
     try:
-        subprocess.call(["mkvextract", "tracks", video.path,
+        retval = subprocess.call(["mkvextract", "tracks", video.path,
                          str(video.embedded_sub_id) + ":" + video.sub_path])
-        print("Embedded subtitles successfully extracted.")
+        if retval == 0:
+            print("Embedded subtitles successfully extracted.")
+        else:
+            print("ERROR: Embedded subtitles failed to extract, trying to download...")
+            download_sub(video)
     except subprocess.CalledProcessError as ex:
         print("ERROR: Embedded subtitles failed to extract. ", ex)
 
 
-def download_sub(video, language):
+def download_sub(video):
     try:
         v = subliminal.scan_video(video.path)
     except ValueError as ex:
         print("ERROR: Failed to analyze video video file. ", ex)
         return
     best_subs = subliminal.download_best_subtitles({v},
-                                                   {babelfish.Language(language)}, only_one=True)
+                                                   {babelfish.Language(OPTIONS.language)}, only_one=True)
     if best_subs[v]:
         sub = best_subs[v][0]
         subliminal.save_subtitles(v, [sub], single=True)
@@ -86,15 +90,15 @@ def download_sub(video, language):
         print("ERROR: No subtitles found online.")
 
 
-def get_subtitles(video, force_download=False, language="eng"):
+def get_subtitles(video):
     if not video.has_external_sub:
         print("External subtitles not present")
-        if video.has_embedded_sub and not force_download:
+        if video.has_embedded_sub and not OPTIONS.download_subtitles:
             print("Extracting embedded subtitles...")
             extract_embedded_sub(video)
         else:
             print ("Downloading subtitles...")
-            download_sub(video, language)
+            download_sub(video)
     else:
         print("External subtitles already present.")
 
@@ -154,7 +158,7 @@ def transcode_video(video):
 
 
 def is_supported_video_file(file):
-    supported_extensions = frozenset(['.mkv', '.mp4', '.avi', '.mpg', '.mpeg'])
+    supported_extensions = frozenset(['.mkv', '.mp4', '.avi', '.mpg', '.mpeg', '.divx'])
     if os.path.isfile(file):
         (basename, ext) = os.path.splitext(file)
         if ext in supported_extensions:
@@ -186,7 +190,7 @@ def prepare_videos(videos):
     for v in videos:
         print("===========================")
         print("Processing video: {f}".format(f=v.filename))
-        get_subtitles(v, OPTIONS.download_subtitles, OPTIONS.language)
+        get_subtitles(v)
         transcode_video(v)
         print("")
 
