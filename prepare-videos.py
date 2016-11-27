@@ -21,7 +21,6 @@ import sys
 import os
 import argparse
 import subprocess
-import re
 import subliminal
 import babelfish
 import json
@@ -40,8 +39,8 @@ class Video:
     def _scan_video(self):
         try:
             info_json = subprocess.check_output(["ffprobe", "-show_format",
-                "-show_streams", "-loglevel", "quiet", "-print_format", "json",
-                self.path])
+                                                 "-show_streams", "-loglevel", "quiet", "-print_format", "json",
+                                                 self.path])
         except subprocess.CalledProcessError as ex:
             print(ex)
             sys.exit(1)
@@ -73,6 +72,7 @@ def extract_embedded_sub(video):
         print("ERROR.")
         print(ex)
 
+
 def download_sub(video, language):
     print("Downloading subtitles for {f}".format(f=video.filename))
     try:
@@ -81,13 +81,14 @@ def download_sub(video, language):
         print("ERROR: Failed to analyze video video file. ", ex)
         return
     best_subs = subliminal.download_best_subtitles({v},
-            {babelfish.Language(language)}, only_one=True)
+                                                   {babelfish.Language(language)}, only_one=True)
     if best_subs[v]:
         sub = best_subs[v][0]
         subliminal.save_subtitles(v, [sub], single=True)
         print("OK.")
     else:
         print("ERROR: No subtitles found online.")
+
 
 def get_subtitles(video, force_download=False, language="eng"):
     if not video.has_external_sub:
@@ -98,19 +99,19 @@ def get_subtitles(video, force_download=False, language="eng"):
     else:
         print("Subtitles OK for {f}".format(f=video.filename))
 
+
 def transcode_video(video, args):
     supported_vcodec = True
     supported_acodec = True
     for stream in video.info['streams']:
         if stream['codec_type'] == "video" and \
-                stream['codec_name'] in args.unsupported_vcodecs:
+                        stream['codec_name'] in args.unsupported_vcodecs:
             print("Unsupported video codec {c} in file {f}".format(c=stream['codec_name'],
-                f=video.filename))
+                                                                   f=video.filename))
             supported_vcodec = False
-        if stream['codec_type'] == "audio" and \
-                stream['codec_name'] in args.unsupported_acodecs:
+        if not (not (stream['codec_type'] == "audio") or not (stream['codec_name'] in args.unsupported_acodecs)):
             print("Unsupported audio codec {c} in file {f}".format(c=stream['codec_name'],
-                f=video.filename))
+                                                                   f=video.filename))
             supported_acodec = False
     if not supported_vcodec or not supported_acodec:
         target = os.path.join(video.directory, video.basename + "." + args.container)
@@ -125,7 +126,7 @@ def transcode_video(video, args):
         if os.path.isfile(target):
             print("Skipping already converted video {f}".format(f=video.filename))
             return
-        #ffmpeg -i file -nostats -loglevel 0 -c:v libx264 -preset slow -acodec copy -scodec copy h264-file
+        # ffmpeg -i file -nostats -loglevel 0 -c:v libx264 -preset slow -acodec copy -scodec copy h264-file
         command = ["ffmpeg", "-i", original_file, "-nostats", "-loglevel", "0"]
         if not supported_vcodec:
             command += ["-c:v", args.vcodec, "-preset", "slow"]
@@ -160,13 +161,14 @@ def is_supported_video_file(file):
             return True
     return False
 
-def search_videos(dir=None, file_list=None):
-    "Scan a directory for supported video files"
-    if not dir and not file_list:
+
+def search_videos(directory=None, file_list=None):
+    """Scan a directory for supported video files"""
+    if not directory and not file_list:
         raise ValueError("A directory or a file must be specified")
     videos = []
-    if dir:
-        for root, dirs, files in os.walk(dir):
+    if directory:
+        for root, dirs, files in os.walk(directory):
             for name in files:
                 if os.path.basename(root) == ".original":
                     continue
@@ -180,36 +182,36 @@ def search_videos(dir=None, file_list=None):
     return videos
 
 
-def main(argv):
+def main():
     parser = argparse.ArgumentParser(description="Prepare videos for LG TV")
     parser.add_argument("-d", "--directory",
-            help="Directory to scan recursively for videos")
+                        help="Directory to scan recursively for videos")
     parser.add_argument("-c", "--container",
-            help="Target video container (default: mkv)",
-            default="mkv")
+                        help="Target video container (default: mkv)",
+                        default="mkv")
     parser.add_argument("-vc", "--vcodec",
-            help="Target video codec (default: libx264)",
-            default="libx264")
+                        help="Target video codec (default: libx264)",
+                        default="libx264")
     parser.add_argument("-ac", "--acodec",
-            help="Target audio codec (default: ac3)",
-            default="ac3")
+                        help="Target audio codec (default: ac3)",
+                        default="ac3")
     parser.add_argument("-uv", "--unsupported-vcodecs",
-            help="Unsupported video codecs (default: hevc)",
-            nargs='+',
-            default=["hevc"])
+                        help="Unsupported video codecs (default: hevc)",
+                        nargs='+',
+                        default=["hevc"])
     parser.add_argument("-ua", "--unsupported-acodecs",
-            help="Unsupported audio codecs (default: dts, dca)",
-            nargs='+',
-            default=["dts", "dca"])
+                        help="Unsupported audio codecs (default: dts, dca)",
+                        nargs='+',
+                        default=["dts", "dca"])
     parser.add_argument("-v", "--verbose", action="store_true",
-            help="More information")
+                        help="More information")
     parser.add_argument("-ds", "--download-subtitles", action="store_true",
-            help="Force to download subtitles")
+                        help="Force to download subtitles")
     parser.add_argument("-l", "--language", help="Subtitles language",
-            default="eng")
+                        default="eng")
     parser.add_argument("file", nargs='*', help="Files to analyze")
     args = parser.parse_args()
-    videos = search_videos(dir=args.directory, file_list=args.file)
+    videos = search_videos(directory=args.directory, file_list=args.file)
     for v in videos:
         if args.verbose:
             pprint.pprint(v.__dict__)
@@ -217,5 +219,6 @@ def main(argv):
     for v in videos:
         transcode_video(v, args)
 
+
 if __name__ == '__main__':
-    main(sys.argv)
+    main()
