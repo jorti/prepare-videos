@@ -26,6 +26,21 @@ import json
 
 
 class Video:
+    """
+    Video class has all the information of a video file.
+    
+    Properties:
+    
+    path
+    directory
+    filename
+    basename
+    extension
+    info
+    has_embedded_sub
+    embedded_sub_id
+    has_external_sub
+    """
     def __init__(self, file_path):
         self.path = os.path.abspath(file_path)
         (self.directory, self.filename) = os.path.split(self.path)
