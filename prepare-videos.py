@@ -119,17 +119,17 @@ def get_subtitles(video):
 
 
 def transcode_video(video):
-    supported_vcodec = True
-    supported_acodec = True
+    supported_video_codec = True
+    supported_audio_codec = True
     for stream in video.info['streams']:
         if stream['codec_type'] == "video" and \
-                        stream['codec_name'] in OPTIONS.unsupported_vcodecs:
+                        stream['codec_name'] in OPTIONS.unsupported_video_codecs:
             logging.warning("Unsupported video codec: {c}".format(c=stream['codec_name']))
-            supported_vcodec = False
-        if not (not (stream['codec_type'] == "audio") or not (stream['codec_name'] in OPTIONS.unsupported_acodecs)):
+            supported_video_codec = False
+        if not (not (stream['codec_type'] == "audio") or not (stream['codec_name'] in OPTIONS.unsupported_audio_codecs)):
             logging.warning("Unsupported audio codec: {c}".format(c=stream['codec_name']))
-            supported_acodec = False
-    if not supported_vcodec or not supported_acodec:
+            supported_audio_codec = False
+    if not supported_video_codec or not supported_audio_codec:
         logging.info("Transcoding...")
         target = os.path.join(video.directory, video.basename + "." + OPTIONS.container)
         original_dir = os.path.join(video.directory, ".original")
@@ -145,12 +145,12 @@ def transcode_video(video):
             return
         # ffmpeg -i file -nostats -loglevel 0 -c:v libx264 -preset slow -acodec copy -scodec copy h264-file
         command = ["ffmpeg", "-i", original_file, "-nostats", "-loglevel", "0"]
-        if not supported_vcodec:
+        if not supported_video_codec:
             command += ["-c:v", OPTIONS.vcodec, "-preset", "slow"]
         else:
             command += ["-vcodec", "copy"]
-        if not supported_acodec:
-            command += ["-c:a", OPTIONS.acodec]
+        if not supported_audio_codec:
+            command += ["-c:a", OPTIONS.audio_codec]
         else:
             command += ["-acodec", "copy"]
         command += ["-scodec", "copy", target]
@@ -218,14 +218,14 @@ def main():
     parser.add_argument("-vc", "--vcodec",
                         help="Target video codec (default: libx264)",
                         default="libx264")
-    parser.add_argument("-ac", "--acodec",
+    parser.add_argument("-ac", "--audio-codec",
                         help="Target audio codec (default: ac3)",
                         default="ac3")
-    parser.add_argument("-uv", "--unsupported-vcodecs",
+    parser.add_argument("-uv", "--unsupported-video-codecs",
                         help="Unsupported video codecs (default: hevc)",
                         nargs='+',
                         default=["hevc"])
-    parser.add_argument("-ua", "--unsupported-acodecs",
+    parser.add_argument("-ua", "--unsupported-audio-codecs",
                         help="Unsupported audio codecs (default: dts, dca)",
                         nargs='+',
                         default=["dts", "dca"])
