@@ -69,10 +69,10 @@ class Video:
     def _scan_embedded_subtitles(self):
         self.has_embedded_sub = False
         for stream in self.info['streams']:
-            if stream['codec_type'] == 'subtitle':
+            if stream['codec_type'] == 'subtitle' and stream['codec_name'] == 'subrip':
                 self.has_embedded_sub = True
                 self.embedded_sub_id = stream['index']
-                return
+                break
 
     def _scan_external_subtitles(self):
         self.sub_path = os.path.join(self.directory, self.basename + ".srt")
