@@ -245,7 +245,7 @@ parser.add_argument("-l", "--language", help="Subtitles language",
 parser.add_argument("file", nargs='*', help="Files to analyze")
 args = parser.parse_args()
 logging.basicConfig(level=args.log_level.upper())
-logging.getLogger("subliminal").setLevel(logging.WARNING)
+logging.getLogger("subliminal").setLevel(logging.CRITICAL)
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("rebulk").setLevel(logging.WARNING)
 try:
