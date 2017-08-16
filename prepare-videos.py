@@ -237,7 +237,7 @@ parser.add_argument("-ua", "--unsupported-audio-codecs",
                     help="Unsupported audio codecs (default: dts, dca)",
                     nargs='+',
                     default=["dts", "dca"])
-parser.add_argument("--log-level", default="WARNING", help="Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
+parser.add_argument("--log-level", default="INFO", help="Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
 parser.add_argument("-ds", "--download-subtitles", action="store_true",
                     help="Force to download subtitles")
 parser.add_argument("-l", "--language", help="Subtitles language",
