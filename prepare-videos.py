@@ -121,8 +121,9 @@ def get_subtitles(video):
     if not video.has_external_sub:
         logging.warning("{}: External subtitles not present".format(video.filename))
         if video.has_embedded_sub and not args.download_subtitles:
-            logging.info("{}: Extracting embedded subtitles...".format(video.filename))
-            extract_embedded_sub(video)
+            logging.info("{}: Skipping extracting embedded subtitles...".format(video.filename))
+            # logging.info("{}: Extracting embedded subtitles...".format(video.filename))
+            # extract_embedded_sub(video)
         else:
             logging.info("{}: Downloading subtitles...".format(video.filename))
             download_sub(video)
