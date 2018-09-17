@@ -219,11 +219,11 @@ parser.add_argument("-ac", "--audio-codec",
 parser.add_argument("-uv", "--unsupported-video-codecs",
                     help="Unsupported video codecs (default: hevc)",
                     nargs='+',
-                    default=["hevc"])
+                    default=[])
 parser.add_argument("-ua", "--unsupported-audio-codecs",
                     help="Unsupported audio codecs (default: dts, dca)",
                     nargs='+',
-                    default=["dts", "dca"])
+                    default=[])
 parser.add_argument("--log-level", default="INFO", help="Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
 parser.add_argument("-ds", "--download-subtitles", action="store_true",
                     help="Force to download subtitles")
