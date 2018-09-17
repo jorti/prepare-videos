@@ -29,18 +29,6 @@ import logging
 class Video:
     """
     Video class has all the information of a video file.
-    
-    Properties:
-    
-    path
-    directory
-    filename
-    basename
-    extension
-    info
-    has_embedded_sub
-    embedded_sub_id
-    has_external_sub
     """
 
     def __init__(self, file_path):
@@ -201,7 +189,6 @@ def search_videos(directory, files):
     """Scan a directory for supported video files"""
     if not directory and not files:
         raise ValueError("A directory or a file must be specified")
-    videos = []
     if directory:
         for root, dirs, files in os.walk(directory):
             for name in files:
@@ -209,12 +196,11 @@ def search_videos(directory, files):
                     continue
                 f = os.path.join(root, name)
                 if is_supported_video_file(f):
-                    videos.append(Video(f))
+                    yield Video(f)
     if files:
         for f in files:
             if is_supported_video_file(f):
-                videos.append(Video(f))
-    return videos
+                yield Video(f)
 
 
 parser = argparse.ArgumentParser(
@@ -249,12 +235,7 @@ logging.basicConfig(level=args.log_level.upper())
 logging.getLogger("subliminal").setLevel(logging.CRITICAL)
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("rebulk").setLevel(logging.WARNING)
-try:
-    videos = search_videos(directory=args.directory, files=args.file)
-except ValueError:
-    logging.critical("Please, specify at least a file or a directory.")
-    sys.exit(1)
-for v in videos:
+for v in search_videos(directory=args.directory, files=args.file):
     logging.info("{}: Processing video".format(v.filename))
     get_subtitles(v)
     transcode_video(v)
