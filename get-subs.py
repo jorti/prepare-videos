@@ -51,19 +51,19 @@ class Video:
             return True
         return False
 
-    def get_subtitles(self, force_download=False):
+    def get_subtitles(self, force_download=False, lang='eng'):
         if not self.has_external_subtitles():
             if force_download:
-                self.download_sub()
+                self.download_sub(lang)
             elif self.has_embedded_sub:
                 self.extract_embedded_sub()
             else:
-                self.download_sub()
+                self.download_sub(lang)
 
-    def download_sub(self):
+    def download_sub(self, lang):
         logging.info("{}: Downloading subtitles...".format(self.filename))
         vid = scan_video(self.path)
-        best_subs = download_best_subtitles({vid}, {babelfish.Language(args.language)}, only_one=True)
+        best_subs = download_best_subtitles({vid}, {babelfish.Language(lang)}, only_one=True)
         if best_subs[vid]:
             sub = best_subs[vid][0]
             save_subtitles(vid, [sub], single=True)
@@ -81,7 +81,6 @@ class Video:
             logging.info("{}: Embedded subtitles successfully extracted.".format(self.filename))
         else:
             logging.error("{}: Embedded subtitles failed to extract.".format(self.filename))
-            self.download_sub()
 
 
 def is_supported_video_file(file):
@@ -124,4 +123,4 @@ args = parser.parse_args()
 logging.basicConfig(level=args.log_level.upper())
 for v in search_videos(directory=args.directory, files=args.file):
     logging.info("{}: Processing file".format(v.filename))
-    v.get_subtitles(force_download=args.download_subtitles)
+    v.get_subtitles(force_download=args.download_subtitles, lang=args.language)
