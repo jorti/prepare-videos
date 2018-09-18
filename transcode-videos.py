@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright 2016 Juan Orti Alcaine <j.orti.alcaine@gmail.com>
+# Copyright 2018 Juan Orti Alcaine <j.orti.alcaine@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,103 +20,7 @@ import sys
 import os
 import argparse
 import subprocess
-from subliminal import scan_video, download_best_subtitles, save_subtitles
-import babelfish
-import json
 import logging
-
-
-class Video:
-    """
-    Video class has all the information of a video file.
-    """
-
-    def __init__(self, file_path):
-        self.path = os.path.abspath(file_path)
-        (self.directory, self.filename) = os.path.split(self.path)
-        (self.basename, self.extension) = os.path.splitext(self.filename)
-        self._scan_video()
-        self._scan_embedded_subtitles()
-        self._scan_external_subtitles()
-
-    def _scan_video(self):
-        command = ["ffprobe", "-show_format", "-show_streams", "-loglevel", "quiet", "-print_format", "json",
-                   self.path]
-        logging.debug("Running command {}".format(command))
-        try:
-            info_json = subprocess.check_output(command)
-        except subprocess.CalledProcessError as ex:
-            logging.critical("Failed tu run command {}".format(command))
-            logging.critical(ex)
-            sys.exit(1)
-        except FileNotFoundError:
-            logging.critical("Command ffprobe not found.")
-            sys.exit(1)
-        self.info = json.loads(info_json.decode('utf_8'))
-
-    def _scan_embedded_subtitles(self):
-        self.has_embedded_sub = False
-        for stream in self.info['streams']:
-            if stream['codec_type'] == 'subtitle' and stream['codec_name'] == 'subrip':
-                self.has_embedded_sub = True
-                self.embedded_sub_id = stream['index']
-                break
-
-    def _scan_external_subtitles(self):
-        self.sub_path = os.path.join(self.directory, self.basename + ".srt")
-        if os.path.isfile(self.sub_path):
-            self.has_external_sub = True
-        else:
-            self.has_external_sub = False
-
-
-def extract_embedded_sub(video):
-    command = ["mkvextract", "tracks", video.path, str(video.embedded_sub_id) + ":" + video.sub_path]
-    logging.debug("Running command {}".format(command))
-    try:
-        retval = subprocess.call(command)
-        if retval == 0:
-            logging.info("{}: Embedded subtitles successfully extracted.".format(video.filename))
-        else:
-            logging.error("{}: Embedded subtitles failed to extract, trying to download...".format(video.filename))
-            download_sub(video)
-    except subprocess.CalledProcessError as ex:
-        logging.error("{}: Embedded subtitles failed to extract.".format(video.filename))
-        logging.error("ex")
-    except FileNotFoundError:
-        logging.critical("Command mkvextract not found.")
-        sys.exit(1)
-
-
-def download_sub(video):
-    try:
-        v = scan_video(video.path)
-    except ValueError as ex:
-        logging.error("{}: Failed to analyze file".format(video.filename))
-        logging.error(ex)
-        return
-    best_subs = download_best_subtitles({v},
-                                        {babelfish.Language(args.language)}, only_one=True)
-    if best_subs[v]:
-        sub = best_subs[v][0]
-        save_subtitles(v, [sub], single=True)
-        logging.info("{}: Subtitles successfully downloaded.".format(video.filename))
-    else:
-        logging.error("{}: No subtitles found online.".format(video.filename))
-
-
-def get_subtitles(video):
-    if not video.has_external_sub:
-        logging.warning("{}: External subtitles not present".format(video.filename))
-        if video.has_embedded_sub and not args.download_subtitles:
-            logging.info("{}: Skipping extracting embedded subtitles...".format(video.filename))
-            # logging.info("{}: Extracting embedded subtitles...".format(video.filename))
-            # extract_embedded_sub(video)
-        else:
-            logging.info("{}: Downloading subtitles...".format(video.filename))
-            download_sub(video)
-    else:
-        logging.info("{}: External subtitles already present.".format(video.filename))
 
 
 def transcode_video(video):
@@ -171,7 +75,6 @@ def transcode_video(video):
             if os.path.isfile(target):
                 os.remove(target)
             return
-        get_subtitles(Video(target))
     else:
         logging.info("{}: No transcoding needed.".format(video.filename))
 
@@ -196,12 +99,11 @@ def search_videos(directory, files):
                     continue
                 f = os.path.join(root, name)
                 if is_supported_video_file(f):
-                    yield Video(f)
+                    yield f
     if files:
         for f in files:
             if is_supported_video_file(f):
-                yield Video(f)
-
+                yield f
 
 parser = argparse.ArgumentParser(
     description='Script to prepare video files: download subtitles, transcode to supported formats, etc.')
@@ -225,17 +127,9 @@ parser.add_argument("-ua", "--unsupported-audio-codecs",
                     nargs='+',
                     default=[])
 parser.add_argument("--log-level", default="INFO", help="Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
-parser.add_argument("-ds", "--download-subtitles", action="store_true",
-                    help="Force to download subtitles")
-parser.add_argument("-l", "--language", help="Subtitles language",
-                    default="eng")
 parser.add_argument("file", nargs='*', help="Files to analyze")
 args = parser.parse_args()
 logging.basicConfig(level=args.log_level.upper())
-logging.getLogger("subliminal").setLevel(logging.CRITICAL)
-logging.getLogger("requests").setLevel(logging.WARNING)
-logging.getLogger("rebulk").setLevel(logging.WARNING)
 for v in search_videos(directory=args.directory, files=args.file):
-    logging.info("{}: Processing video".format(v.filename))
-    get_subtitles(v)
+    logging.info("{}: Processing video".format(v))
     transcode_video(v)
