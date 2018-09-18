@@ -16,7 +16,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-import sys
 import os
 import argparse
 import subprocess
@@ -63,11 +62,11 @@ class Video:
 
     def download_sub(self):
         logging.info("{}: Downloading subtitles...".format(self.filename))
-        v = scan_video(self.path)
-        best_subs = download_best_subtitles({v}, {babelfish.Language(args.language)}, only_one=True)
-        if best_subs[v]:
-            sub = best_subs[v][0]
-            save_subtitles(v, [sub], single=True)
+        vid = scan_video(self.path)
+        best_subs = download_best_subtitles({vid}, {babelfish.Language(args.language)}, only_one=True)
+        if best_subs[vid]:
+            sub = best_subs[vid][0]
+            save_subtitles(vid, [sub], single=True)
             logging.info("{}: Subtitles successfully downloaded.".format(self.filename))
         else:
             logging.error("{}: No subtitles found online.".format(self.filename))
@@ -91,6 +90,7 @@ def is_supported_video_file(file):
         (basename, ext) = os.path.splitext(file)
         if ext in supported_extensions:
             return True
+    logging.debug("Ignoring file: " + file)
     return False
 
 
@@ -114,7 +114,7 @@ parser = argparse.ArgumentParser(
     description='Script to get video subtitles')
 parser.add_argument("-d", "--directory",
                     help="Directory to scan recursively for videos")
-parser.add_argument("--log-level", default="INFO", help="Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
+parser.add_argument("--log-level", default="WARNING", help="Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
 parser.add_argument("-ds", "--download-subtitles", action="store_true",
                     help="Force to download subtitles")
 parser.add_argument("-l", "--language", help="Subtitles language",
@@ -122,9 +122,6 @@ parser.add_argument("-l", "--language", help="Subtitles language",
 parser.add_argument("file", nargs='*', help="Files to analyze")
 args = parser.parse_args()
 logging.basicConfig(level=args.log_level.upper())
-logging.getLogger("subliminal").setLevel(logging.CRITICAL)
-logging.getLogger("requests").setLevel(logging.WARNING)
-logging.getLogger("rebulk").setLevel(logging.WARNING)
 for v in search_videos(directory=args.directory, files=args.file):
-    logging.info("{}: Processing video".format(v.filename))
-    v.get_subtitles()
+    logging.info("{}: Processing file".format(v.filename))
+    v.get_subtitles(force_download=args.download_subtitles)
