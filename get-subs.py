@@ -60,10 +60,11 @@ class Video:
             else:
                 self.download_sub(lang)
 
-    def download_sub(self, lang):
+    def download_sub(self, lang='eng'):
+        prov_conf = {'opensubtitles': {'username': 'miceliux', 'password': 'rLEsPo2ckvW1u68qAxbF'}}
         logging.info("{}: Downloading subtitles...".format(self.filename))
         vid = scan_video(self.path)
-        best_subs = download_best_subtitles({vid}, {babelfish.Language(lang)}, only_one=True)
+        best_subs = download_best_subtitles({vid}, {babelfish.Language(lang)}, only_one=True, provider_configs=prov_conf)
         if best_subs[vid]:
             sub = best_subs[vid][0]
             save_subtitles(vid, [sub], single=True)
