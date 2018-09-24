@@ -51,14 +51,15 @@ class Video:
             return True
         return False
 
-    def get_subtitles(self, force_download=False, lang='eng'):
-        if not self.has_external_subtitles():
-            if force_download:
-                self.download_sub(lang)
-            elif self.has_embedded_sub:
-                self.extract_embedded_sub()
-            else:
-                self.download_sub(lang)
+    def get_subtitles(self, force_download=False, force_extract=False, lang='eng'):
+        if force_extract and self.has_embedded_sub:
+            self.extract_embedded_sub()
+        elif force_download:
+            self.download_sub(lang)
+        elif not self.has_embedded_sub and not self.has_external_subtitles():
+            self.download_sub(lang)
+        else:
+            logging.info("Skipping file ".format(self.filename))
 
     def download_sub(self, lang='eng'):
         prov_conf = {'opensubtitles': {'username': 'miceliux', 'password': 'rLEsPo2ckvW1u68qAxbF'}}
@@ -115,8 +116,10 @@ parser = argparse.ArgumentParser(
 parser.add_argument("-d", "--directory",
                     help="Directory to scan recursively for videos")
 parser.add_argument("--log-level", default="WARNING", help="Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
-parser.add_argument("-ds", "--download-subtitles", action="store_true",
+parser.add_argument("--force-download", action="store_true",
                     help="Force to download subtitles")
+parser.add_argument("--force-extract", action="store_true",
+                    help="Force to extract subtitles")
 parser.add_argument("-l", "--language", help="Subtitles language",
                     default="eng")
 parser.add_argument("file", nargs='*', help="Files to analyze")
@@ -124,4 +127,4 @@ args = parser.parse_args()
 logging.basicConfig(level=args.log_level.upper())
 for v in search_videos(directory=args.directory, files=args.file):
     logging.info("{}: Processing file".format(v.filename))
-    v.get_subtitles(force_download=args.download_subtitles, lang=args.language)
+    v.get_subtitles(force_download=args.force_download, force_extract=args.force_extract, lang=args.language)
